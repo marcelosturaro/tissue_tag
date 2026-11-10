@@ -13,7 +13,7 @@
   "scripts": {
     "prepare-assets": "node scripts/prepare-assets.js",
     "start": "npm run prepare-assets && electron .",
-    "dist": "npm run prepare-assets && electron-builder"
+    "dist": "npm run prepare-assets && electron-builder --publish never"
   },
   "devDependencies": {
     "electron": "^33.2.0",
