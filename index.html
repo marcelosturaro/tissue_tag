@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="author" content="Marcelo José Sturaro">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; img-src 'self' data:;">
+<title>TissueTag — Tissue labels for samples</title>
+<script src="vendor/qrcode.js"></script>
+<style>
+:root{
+  --cols:7; --label-w:27mm; --label-h:7mm; --qr-size:5.5mm; --font-size:10pt;
+  --font-family:'Brandon Grotesque','Brandon Text',Brandon,Arial,Helvetica,sans-serif;
+  --font-weight:400; --cut-style:dotted; --cut-color:#555; --cut-width:0.3mm;
+  --margin-top:10mm; --margin-left:10mm;
+  --ink:#10272A; --teal:#0F4C4A; --teal-2:#176B63; --cream:#F6EFD9; --paper:#FBF8EE;
+  --line:#E0D7BC; --amber:#E9A23B; --rose:#C23B6B; --muted:#64767A; --stage:#DCD6C3;
+  --ui:"Segoe UI",system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;font:13px/1.45 var(--ui);color:var(--ink);background:var(--stage);
+     display:grid;grid-template-columns:340px 1fr}
+
+/* ---------- Side panel ---------- */
+.panel{background:var(--paper);border-right:1px solid var(--line);height:100vh;overflow-y:auto;
+       display:flex;flex-direction:column}
+.brand{display:flex;flex-direction:column;gap:12px;padding:20px 18px 18px;background:var(--teal);color:var(--cream)}
+.brand img{display:block;width:100%;height:auto;margin:-6px 0 -18px}
+.brand h1{margin:0;font:700 22px/1.1 var(--ui)}
+.brand p{margin:3px 0 0;font-size:12px;opacity:.8}
+.brand small{font:600 11px var(--ui);background:rgba(246,239,217,.18);border-radius:99px;padding:2px 8px;margin-left:4px;vertical-align:middle}
+.cards{padding:14px;display:grid;gap:10px;flex:1;align-content:start}
+.card{background:#fff;border:1px solid var(--line);border-radius:10px}
+.card>summary{list-style:none;cursor:pointer;padding:11px 12px;font-weight:600;display:flex;gap:8px;align-items:center}
+.card>summary::-webkit-details-marker{display:none}
+.card>summary::after{content:"›";margin-left:auto;color:var(--muted);font-size:18px;transition:transform .15s}
+.card[open]>summary::after{transform:rotate(90deg)}
+.body{padding:2px 12px 13px;display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.field{display:grid;gap:3px;font-size:12px;color:var(--muted);min-width:0}
+.wide{grid-column:1/-1}
+input[type=text],input[type=number],select{width:100%;padding:7px 8px;border:1px solid var(--line);
+  border-radius:7px;background:#fff;color:var(--ink);font:13px var(--ui)}
+input[type=text]{text-transform:uppercase;font-weight:600;letter-spacing:.5px}
+input[type=color]{width:100%;height:33px;border:1px solid var(--line);border-radius:7px;padding:2px;background:#fff}
+input:focus-visible,select:focus-visible,button:focus-visible,summary:focus-visible{outline:2px solid var(--amber);outline-offset:1px}
+.check{display:flex;gap:8px;align-items:center;color:var(--ink);font-size:13px}
+input[type=checkbox],input[type=range]{accent-color:var(--teal-2)}
+.hint{margin:0;font-size:11.5px;color:var(--muted);background:var(--paper);border-radius:7px;padding:6px 8px}
+.hint.over{background:#FFF1D6;color:#8A5A00}
+.about-body{display:block;font-size:12px;color:var(--muted)}
+.about-body ul{margin:0;padding-left:18px}
+.about-body li{margin:4px 0}
+.about-body b{color:var(--ink)}
+.credits-body{display:block;font-size:12px;color:var(--muted)}
+.credits-body p{margin:0 0 10px}
+.credits-body p:last-child{margin:0}
+.credits-body b{color:var(--ink)}
+.credits-body a{color:var(--teal-2);word-break:break-all}
+.actions{position:sticky;bottom:0;display:flex;gap:8px;padding:12px 14px;background:var(--paper);
+         border-top:1px solid var(--line)}
+.btn{border:0;border-radius:8px;padding:9px 14px;font:600 13px var(--ui);cursor:pointer;
+     background:var(--teal-2);color:#fff;transition:background .12s}
+.btn:hover{background:var(--teal)}
+.btn.alt{background:transparent;color:var(--teal);box-shadow:inset 0 0 0 1px var(--line)}
+.btn.alt:hover{background:var(--cream)}
+.btn.main{flex:1;padding:11px 14px;font-size:14px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+
+/* ---------- Preview stage ---------- */
+.stage{height:100vh;overflow:auto}
+.toolbar{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:12px;padding:10px 20px;
+         background:rgba(220,214,195,.94);border-bottom:1px solid var(--line)}
+#info{flex:1;font-weight:600;font-size:12.5px}
+.zoom{display:flex;gap:8px;align-items:center;font-size:12px;color:var(--muted)}
+.zoom input{width:110px}
+#zoomVal{width:34px;text-align:right}
+#preview{padding:22px 24px 40px}
+.empty{display:none;flex-direction:column;align-items:center;justify-content:center;gap:10px;
+       min-height:70%;text-align:center;color:var(--muted);padding:40px}
+.empty b{font-size:17px;color:var(--teal)}
+.empty svg{width:84px;height:84px;opacity:.9}
+.is-empty .empty{display:flex}
+.is-empty #preview{display:none}
+
+/* ---------- Label sheet (print-critical) ---------- */
+.print-page{
+  break-after:page;page-break-after:always;
+  width:max-content;margin:0 auto 22px;background:#fff;
+  box-shadow:0 2px 12px rgba(16,39,42,.2),0 0 0 1px rgba(16,39,42,.06);
+  padding-top:var(--margin-top);padding-left:var(--margin-left);
+  padding-right:var(--margin-left);padding-bottom:var(--margin-top);
+}
+.print-page:last-child{break-after:auto;page-break-after:auto}
+.grid{
+  display:grid;grid-template-columns:repeat(var(--cols),var(--label-w));gap:0;
+  justify-content:flex-start;width:max-content;
+  border-top:var(--cut-width) var(--cut-style) transparent;
+  border-left:var(--cut-width) var(--cut-style) transparent;
+}
+body.cut-lines .grid{border-top-color:var(--cut-color);border-left-color:var(--cut-color)}
+.label{
+  width:var(--label-w);height:var(--label-h);padding:0.4mm 0.6mm 0.4mm 1mm;
+  display:flex;align-items:center;justify-content:space-between;flex-direction:row;gap:0.8mm;
+  page-break-inside:avoid;break-inside:avoid;overflow:hidden;background:#fff;
+  border-right:var(--cut-width) var(--cut-style) transparent;
+  border-bottom:var(--cut-width) var(--cut-style) transparent;
+}
+body.cut-lines .label{border-right-color:var(--cut-color);border-bottom-color:var(--cut-color)}
+.label .txt{order:1;flex:1;min-width:0;font-size:var(--font-size);font-family:var(--font-family);
+  font-weight:var(--font-weight);word-break:break-word;overflow:hidden;line-height:1.1}
+.label .qr{order:2;flex-shrink:0;width:var(--qr-size);height:var(--qr-size);
+  display:flex;align-items:center;justify-content:center}
+.label .qr canvas,.label .qr img,.label .qr svg{width:100%!important;height:100%!important;display:block}
+
+@media print{
+  html,body{height:auto;display:block;background:#fff;margin:0;padding:0}
+  .panel,.toolbar,.empty{display:none!important}
+  .stage{height:auto;overflow:visible}
+  #preview{padding:0}
+  #labels{zoom:1!important}
+  .print-page{box-shadow:none;margin:0;padding-right:0;padding-bottom:0}
+  @page{margin:3mm}
+}
+</style>
+</head>
+<body class="cut-lines">
+
+<aside class="panel">
+  <header class="brand">
+    <img src="logo.png" alt="TissueTag logo">
+    <div><h1>TissueTag <small>v1.0</small></h1><p>Tissue labels for samples</p></div>
+  </header>
+
+  <div class="cards">
+    <details class="card">
+      <summary>💡 About TissueTag and printing tips</summary>
+      <div class="body about-body">
+        <ul>
+          <li>Labels follow the format <b>ACRONYM 00001</b> within the range you choose.</li>
+          <li>Each QR code holds the same text printed on its label.</li>
+          <li>Column order fills one full column before the next, so you can cut strips and stack them; the sequence continues across pages.</li>
+          <li>Print at <b>100% scale</b> with <b>Background graphics</b> turned on.</li>
+          <li>Your settings are remembered the next time you open the app.</li>
+        </ul>
+      </div>
+    </details>
+
+    <details class="card" open>
+      <summary>🏷️ Labels</summary>
+      <div class="body">
+        <label class="field wide">Acronym
+          <input type="text" id="acronym" value="MJS" maxlength="10" placeholder="Acronym, e.g. MJS">
+        </label>
+        <label class="field">From<input type="number" id="startNum" value="1" min="1" max="99999"></label>
+        <label class="field">To<input type="number" id="endNum" value="100" min="1" max="99999"></label>
+      </div>
+    </details>
+
+    <details class="card" open>
+      <summary>📐 Sheet layout</summary>
+      <div class="body">
+        <label class="field">Columns<input type="number" id="cols" value="7" min="1" max="12"></label>
+        <label class="field">Rows per page<input type="number" id="rowsPage" value="40" min="1" max="200"></label>
+        <label class="field">Label width (mm)<input type="number" id="labelW" value="27" min="10" step="0.5"></label>
+        <label class="field">Label height (mm)<input type="number" id="labelH" value="7" min="5" step="0.5"></label>
+        <label class="field">QR size (mm)<input type="number" id="qrSize" value="5.5" min="3" step="0.5"></label>
+        <label class="field">Top margin (mm)<input type="number" id="marginTop" value="10" min="0" max="50" step="0.5"></label>
+        <label class="field">Left margin (mm)<input type="number" id="marginLeft" value="10" min="0" max="50" step="0.5"></label>
+        <label class="field wide">Fill order
+          <select id="orderMode">
+            <option value="column-blocks" selected>Column by column (cut strips and stack)</option>
+            <option value="sequential">Row by row</option>
+          </select>
+        </label>
+        <p class="hint wide" id="hint"></p>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary>🔤 Text</summary>
+      <div class="body">
+        <label class="field wide">Font
+          <select id="fontFamily">
+            <option value="'Brandon Grotesque','Brandon Text',Brandon,Arial,Helvetica,sans-serif" selected>Brandon Grotesque</option>
+            <option value="Arial, Helvetica, sans-serif">Arial</option>
+            <option value="Helvetica, Arial, sans-serif">Helvetica</option>
+            <option value="Verdana, Geneva, sans-serif">Verdana</option>
+            <option value="Tahoma, Geneva, sans-serif">Tahoma</option>
+            <option value="'Trebuchet MS', Helvetica, sans-serif">Trebuchet MS</option>
+            <option value="'Times New Roman', Times, serif">Times New Roman</option>
+            <option value="Georgia, 'Times New Roman', serif">Georgia</option>
+            <option value="'Courier New', Courier, monospace">Courier New</option>
+            <option value="Consolas, Monaco, monospace">Consolas</option>
+          </select>
+        </label>
+        <label class="field">Size (pt)<input type="number" id="fontSize" value="10" min="4" max="20" step="0.5"></label>
+        <label class="check"><input type="checkbox" id="bold"> Bold</label>
+      </div>
+    </details>
+
+    <details class="card">
+      <summary>✂️ Cut lines</summary>
+      <div class="body">
+        <label class="check wide"><input type="checkbox" id="cutLines" checked> Show dotted cut lines</label>
+        <label class="field">Color<input type="color" id="cutColor" value="#555555"></label>
+        <label class="field">Thickness (mm)<input type="number" id="cutWidth" value="0.3" min="0.05" max="1" step="0.05"></label>
+      </div>
+    </details>
+
+
+    <details class="card">
+      <summary>ℹ️ Credits</summary>
+      <div class="body credits-body">
+        <p><b>TissueTag — Tissue labels for samples</b><br>Version 1.0</p>
+        <p>2026, Marcelo José Sturaro</p>
+        <p>Cururu Lab<br>Instituto de Ciências Ambientais, Químicas e Farmacêuticas<br>Universidade Federal de São Paulo</p>
+        <p>Source code available from:<br><a href="https://github.com/marcelosturaro/tissue_tag/" target="_blank" rel="noopener">https://github.com/marcelosturaro/tissue_tag/</a></p>
+      </div>
+    </details>
+  </div>
+
+  <div class="actions">
+    <button class="btn main" id="genBtn">Generate labels</button>
+    <button class="btn alt" id="resetBtn" title="Restore default settings">Reset</button>
+  </div>
+</aside>
+
+<main class="stage is-empty" id="stage">
+  <div class="toolbar">
+    <span id="info"></span>
+    <label class="zoom">Zoom <input type="range" id="zoom" min="40" max="200" step="10" value="100"><span id="zoomVal">100%</span></label>
+    <button class="btn alt" id="clearBtn">Clear</button>
+    <button class="btn" id="printBtn" disabled>🖨️ Print</button>
+  </div>
+  <div class="empty">
+    <svg viewBox="0 0 64 64" aria-hidden="true"><rect x="10" y="16" width="26" height="34" rx="3" fill="#F6EFD9" stroke="#C9BE9C"/><rect x="36" y="9" width="14" height="8" rx="2" fill="#F2B34A"/><path d="M37 17h12v26q0 6-6 12q-6-6-6-12z" fill="#E4F4F2" stroke="#9FB7B2"/><path d="M38 44q5-3 10 0q-1 5-5 9q-4-4-5-9z" fill="#E56A93"/></svg>
+    <b>No labels yet</b>
+    <span>Choose an acronym and a number range, then press <b>Generate labels</b>.</span>
+  </div>
+  <div id="preview"><div id="labels"></div></div>
+</main>
+
+<script>
+(function(){
+  "use strict";
+  var $ = function(id){ return document.getElementById(id); };
+  var state = { rows:[], rendering:false, pending:false };
+  var timer = null;
+
+  var SAVED = ['acronym','cols','rowsPage','labelW','labelH','qrSize','marginTop','marginLeft',
+               'orderMode','fontFamily','fontSize','bold','cutLines','cutColor','cutWidth','zoom'];
+  var LAYOUT = SAVED.filter(function(id){ return id !== 'acronym'; });
+  var defaults = {};
+
+  /* ---------- Saved settings ---------- */
+  function snapshot(){
+    var o = {};
+    SAVED.forEach(function(id){ var e = $(id); o[id] = e.type === 'checkbox' ? e.checked : e.value; });
+    return o;
+  }
+  function restore(o){
+    SAVED.forEach(function(id){
+      if (!(id in o)) return;
+      var e = $(id);
+      if (e.type === 'checkbox') e.checked = !!o[id]; else e.value = o[id];
+    });
+  }
+  function save(){ try{ localStorage.setItem('tissuetag.settings', JSON.stringify(snapshot())); }catch(e){} }
+  function load(){ try{ var s = localStorage.getItem('tissuetag.settings'); if (s) restore(JSON.parse(s)); }catch(e){} }
+
+  /* ---------- QR (local library, SVG output) ---------- */
+  function makeQR(text, container){
+    container.innerHTML = '';
+    if (typeof qrcode === 'undefined'){ container.textContent = 'QR'; return; }
+    var qr = qrcode(0, 'M');
+    qr.addData(text);
+    qr.make();
+    var n = qr.getModuleCount(), quiet = 1, d = '';
+    for (var r = 0; r < n; r++){
+      for (var c = 0; c < n; c++){
+        if (qr.isDark(r, c)) d += 'M' + (c + quiet) + ' ' + (r + quiet) + 'h1v1h-1z';
+      }
+    }
+    var size = n + quiet * 2;
+    container.innerHTML =
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + size + ' ' + size +
+      '" shape-rendering="crispEdges" width="100%" height="100%">' +
+      '<rect width="100%" height="100%" fill="#fff"/><path d="' + d + '" fill="#000"/></svg>';
+  }
+
+  /* ---------- Layout variables ---------- */
+  function fmt(n){ return String(Math.round(n * 10) / 10); }
+  function updateHint(){
+    var c = +$('cols').value || 7,  r = +$('rowsPage').value || 40;
+    var w = +$('labelW').value || 27, h = +$('labelH').value || 7;
+    var mt = +$('marginTop').value || 0, ml = +$('marginLeft').value || 0;
+    var W = c * w + 2 * ml, H = r * h + 2 * mt, over = W > 210.5 || H > 297.5;
+    var el = $('hint');
+    el.textContent = 'Sheet size ≈ ' + fmt(W) + ' × ' + fmt(H) + ' mm' +
+      (over ? ' — larger than A4 (210 × 297 mm)' : ' — fits on A4');
+    el.classList.toggle('over', over);
+  }
+  function applyZoom(){
+    var z = parseInt($('zoom').value, 10) || 100;
+    $('labels').style.zoom = z / 100;
+    $('zoomVal').textContent = z + '%';
+  }
+  function applyLayoutVars(){
+    var s = document.documentElement.style;
+    s.setProperty('--cols',        $('cols').value || 7);
+    s.setProperty('--label-w',    ($('labelW').value || 27)  + 'mm');
+    s.setProperty('--label-h',    ($('labelH').value || 7)   + 'mm');
+    s.setProperty('--qr-size',    ($('qrSize').value || 5.5) + 'mm');
+    s.setProperty('--font-size',  ($('fontSize').value || 10) + 'pt');
+    s.setProperty('--font-family', $('fontFamily').value);
+    s.setProperty('--font-weight', $('bold').checked ? '700' : '400');
+    s.setProperty('--cut-color',   $('cutColor').value);
+    s.setProperty('--cut-width',  ($('cutWidth').value || 0.3) + 'mm');
+    s.setProperty('--margin-top', ($('marginTop').value  || 0) + 'mm');
+    s.setProperty('--margin-left',($('marginLeft').value || 0) + 'mm');
+    document.body.classList.toggle('cut-lines', $('cutLines').checked);
+    updateHint();
+    applyZoom();
+  }
+
+  /* ---------- Ordering: column blocks of R rows ---------- */
+  function orderColumnBlocks(items, cols, rowsPerPage){
+    var N = items.length, C = cols, R = rowsPerPage;
+    if (!N) return [];
+    var perPage = C * R, pages = Math.max(1, Math.ceil(N / perPage)), result = [];
+    for (var p = 0; p < pages; p++){
+      for (var r = 0; r < R; r++){
+        for (var c = 0; c < C; c++){
+          var idx = p * perPage + c * R + r;
+          result.push(idx < N ? items[idx] : null);
+        }
+      }
+    }
+    return result;
+  }
+
+  /* ---------- Render ---------- */
+  function setEmpty(empty){
+    $('stage').classList.toggle('is-empty', empty);
+    $('printBtn').disabled = empty;
+  }
+
+  function render(){
+    if (state.rendering){ state.pending = true; return; }
+    var labelsEl = $('labels'), infoEl = $('info');
+    labelsEl.innerHTML = '';
+    if (!state.rows.length){ setEmpty(true); infoEl.textContent = ''; return; }
+
+    setEmpty(false);
+    state.rendering = true;
+    $('printBtn').disabled = true;
+
+    var cols = parseInt($('cols').value) || 7;
+    var rowsPerPage = parseInt($('rowsPage').value) || 40;
+    var qrPx = 0;
+    var ordered = ($('orderMode').value === 'sequential')
+      ? state.rows.slice()
+      : orderColumnBlocks(state.rows, cols, rowsPerPage);
+
+    var perPage = cols * rowsPerPage, total = ordered.length, i = 0;
+    var frag = document.createDocumentFragment();
+    var currentGrid = null, itemInPage = perPage;
+
+    function chunk(){
+      var end = Math.min(i + 150, total);
+      for (; i < end; i++){
+        if (itemInPage >= perPage){
+          var pageEl = document.createElement('div');
+          pageEl.className = 'print-page';
+          currentGrid = document.createElement('div');
+          currentGrid.className = 'grid';
+          pageEl.appendChild(currentGrid);
+          frag.appendChild(pageEl);
+          itemInPage = 0;
+        }
+        var value = ordered[i];
+        var labelEl = document.createElement('div');
+        labelEl.className = 'label';
+        if (value === null){
+          // Ghost cell: stays empty but keeps its border so the grid lines up.
+          labelEl.classList.add('ghost');
+        } else {
+          var txtEl = document.createElement('div');
+          txtEl.className = 'txt';
+          txtEl.textContent = value;
+          var qrEl = document.createElement('div');
+          qrEl.className = 'qr';
+          makeQR(value, qrEl, qrPx);
+          labelEl.appendChild(txtEl);
+          labelEl.appendChild(qrEl);
+        }
+        currentGrid.appendChild(labelEl);
+        itemInPage++;
+      }
+      if (frag.childNodes.length){ labelsEl.appendChild(frag); frag = document.createDocumentFragment(); }
+      infoEl.textContent = 'Rendering… ' + i + ' / ' + total;
+
+      if (i < total){
+        setTimeout(chunk, 0);
+      } else {
+        state.rendering = false;
+        var pages = Math.ceil(total / perPage), real = state.rows.length, ghosts = total - real;
+        infoEl.textContent = real + ' label' + (real === 1 ? '' : 's') + ' · ' + pages +
+          ' page' + (pages === 1 ? '' : 's') + ' of ' + perPage + ' slots' +
+          (ghosts ? ' · ' + ghosts + ' empty on the last page' : '');
+        $('printBtn').disabled = false;
+        if (state.pending){ state.pending = false; render(); }
+      }
+    }
+    chunk();
+  }
+
+  function scheduleRender(){
+    clearTimeout(timer);
+    timer = setTimeout(function(){ if (state.rows.length) render(); }, 200);
+  }
+
+  /* ---------- Generate labels ---------- */
+  function generateLabels(){
+    var acrInput = $('acronym');
+    var acronym = (acrInput.value || 'MJS').trim().toUpperCase() || 'MJS';
+    acrInput.value = acronym;
+
+    var sInput = $('startNum'), eInput = $('endNum');
+    var start = Math.max(1, parseInt(sInput.value, 10) || 1);
+    var end   = Math.min(99999, parseInt(eInput.value, 10) || start);
+    if (end < start){ var t = start; start = end; end = t; }
+    sInput.value = start;
+    eInput.value = end;
+
+    var items = [];
+    for (var n = start; n <= end; n++) items.push(acronym + ' ' + String(n).padStart(5, '0'));
+    state.rows = items;
+    save();
+    render();
+  }
+
+  /* ---------- Events ---------- */
+  $('genBtn').addEventListener('click', generateLabels);
+  $('printBtn').addEventListener('click', function(){ window.print(); });
+  $('clearBtn').addEventListener('click', function(){
+    state.rows = [];
+    $('labels').innerHTML = '';
+    $('info').textContent = '';
+    setEmpty(true);
+  });
+  $('resetBtn').addEventListener('click', function(){
+    restore(defaults);
+    applyLayoutVars();
+    save();
+    if (state.rows.length) generateLabels();
+  });
+
+  LAYOUT.forEach(function(id){
+    $(id).addEventListener('input', function(){
+      applyLayoutVars();
+      save();
+      if (id !== 'zoom') scheduleRender();
+    });
+  });
+
+  $('acronym').addEventListener('input', function(e){ e.target.value = e.target.value.toUpperCase(); });
+  ['acronym','startNum','endNum'].forEach(function(id){
+    $(id).addEventListener('keydown', function(e){ if (e.key === 'Enter') generateLabels(); });
+  });
+
+  defaults = snapshot();
+  load();
+  applyLayoutVars();
+  generateLabels();
+})();
+</script>
+</body>
+</html>
